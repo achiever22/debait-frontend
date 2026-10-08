@@ -19,9 +19,13 @@ export function useTournament() {
   const [modalMatchId, setModalMatchId] = useState<string | null>(null);
   const [userVotes, setUserVotes] = useState<Record<string, UserVote>>({});
 
-  // Load votes and mode preference from storage
+  // Load votes, tree and mode preference from storage
   useEffect(() => {
     try {
+      const savedTree = localStorage.getItem("debait_tournament_tree_v1");
+      if (savedTree) {
+        setTree(JSON.parse(savedTree));
+      }
       const savedVotes = localStorage.getItem(STORAGE_VOTES_KEY);
       if (savedVotes) {
         setUserVotes(JSON.parse(savedVotes));
@@ -29,11 +33,36 @@ export function useTournament() {
       const savedMode = localStorage.getItem(STORAGE_MODE_KEY);
       if (savedMode === "empty" || savedMode === "demo") {
         setDataMode(savedMode);
-        setTree(savedMode === "demo" ? demoTournamentData : emptyTournamentData);
+        if (!savedTree) {
+          setTree(savedMode === "demo" ? demoTournamentData : emptyTournamentData);
+        }
       }
     } catch {
       // ignore in SSR or restricted environments
     }
+
+    const handleTreeUpdate = (event: Event) => {
+      const custom = event as CustomEvent<TournamentTree>;
+      if (custom.detail) {
+        setTree(custom.detail);
+      } else {
+        try {
+          const savedTree = localStorage.getItem("debait_tournament_tree_v1");
+          if (savedTree) {
+            setTree(JSON.parse(savedTree));
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    window.addEventListener("tournament-tree-updated", handleTreeUpdate);
+    window.addEventListener("storage", handleTreeUpdate);
+    return () => {
+      window.removeEventListener("tournament-tree-updated", handleTreeUpdate);
+      window.removeEventListener("storage", handleTreeUpdate);
+    };
   }, []);
 
   const switchDataMode = useCallback((mode: "demo" | "empty") => {
